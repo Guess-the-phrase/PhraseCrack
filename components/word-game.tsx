@@ -1,0 +1,204 @@
+"use client"
+
+import type React from "react"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card } from "@/components/ui/card"
+import { fetchSimilarity } from "@/lib/backend-client"
+import { HelpCircle, RotateCcw } from "lucide-react"
+
+type Guess = {
+  word: string
+  similarity: number
+  isCorrect: boolean
+}
+
+const SAMPLE_PHRASES = [
+  "This is a funny phrase!",
+]
+
+export function WordGame() {
+  const [phrase, setPhrase] = useState("")
+  const [revealedWords, setRevealedWords] = useState<Set<string>>(new Set())
+  const [guesses, setGuesses] = useState<Guess[]>([])
+  const [currentGuess, setCurrentGuess] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [showInstructions, setShowInstructions] = useState(false)
+
+  useEffect(() => {
+    startNewGame()
+  }, [])
+
+  const startNewGame = () => {
+    const randomPhrase = SAMPLE_PHRASES[Math.floor(Math.random() * SAMPLE_PHRASES.length)]
+    setPhrase(randomPhrase)
+    setRevealedWords(new Set())
+    setGuesses([])
+    setCurrentGuess("")
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentGuess.trim() || isLoading) return
+
+    setIsLoading(true)
+    const normalizedGuess = currentGuess.toLowerCase().trim()
+
+    // Check if the guess is in the phrase
+    const phraseWords = phrase.toLowerCase().split(" ")
+    const isCorrect = phraseWords.includes(normalizedGuess)
+
+    if (isCorrect) {
+      const newRevealed = new Set(revealedWords)
+      newRevealed.add(normalizedGuess)
+      setRevealedWords(newRevealed)
+      setGuesses([{ word: currentGuess, similarity: 100, isCorrect: true }, ...guesses])
+    } else {
+      // Calculate similarity using external backend
+      try {
+        // TODO: Wire this to real backend (see `lib/backend-client.ts`).
+        const { similarity } = await fetchSimilarity({ guess: normalizedGuess, phrase })
+        setGuesses([{ word: currentGuess, similarity: Math.round(similarity * 100), isCorrect: false }, ...guesses])
+      } catch (error) {
+        console.error("[PhraseCrack] Error calculating similarity:", error)
+        // Fallback to random similarity for demo
+        setGuesses([
+          { word: currentGuess, similarity: Math.floor(Math.random() * 80) + 10, isCorrect: false },
+          ...guesses,
+        ])
+      }
+    }
+
+    setCurrentGuess("")
+    setIsLoading(false)
+  }
+
+  const isGameWon = phrase.split(" ").every((word) => revealedWords.has(word.toLowerCase()))
+
+  return (
+    <div className="w-full max-w-2xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="text-center space-y-2">
+        <h1 className="text-4xl font-bold tracking-tight">PhraseCrack</h1>
+        <p className="text-muted-foreground text-balance">Guess the hidden phrase using semantic similarity</p>
+      </div>
+
+      {/* Phrase Display */}
+      <Card className="p-8 bg-card border-border">
+        <div className="flex flex-wrap gap-3 justify-center items-center min-h-16">
+          {phrase.split(" ").map((word, idx) => (
+            <div
+              key={idx}
+              className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 ${
+                revealedWords.has(word.toLowerCase())
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-secondary border-border"
+              }`}
+            >
+              <span className="font-mono text-lg font-medium">
+                {revealedWords.has(word.toLowerCase()) ? word : "•".repeat(word.length)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Input Form */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex gap-2">
+          <Input
+            type="text"
+            value={currentGuess}
+            onChange={(e) => setCurrentGuess(e.target.value)}
+            placeholder="Enter a word..."
+            className="flex-1 bg-input border-border text-lg"
+            disabled={isLoading || isGameWon}
+            autoFocus
+          />
+          <Button
+            type="submit"
+            disabled={isLoading || isGameWon || !currentGuess.trim()}
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          >
+            {isLoading ? "Thinking..." : "Guess"}
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowInstructions(!showInstructions)}
+            className="flex-1"
+          >
+            <HelpCircle className="w-4 h-4 mr-2" />
+            How to Play
+          </Button>
+          <Button type="button" variant="outline" onClick={startNewGame} className="flex-1 bg-transparent">
+            <RotateCcw className="w-4 h-4 mr-2" />
+            New Game
+          </Button>
+        </div>
+      </form>
+
+      {/* Instructions */}
+      {showInstructions && (
+        <Card className="p-6 bg-card border-border space-y-3">
+          <h3 className="font-semibold text-lg">How to Play</h3>
+          <ul className="space-y-2 text-sm text-muted-foreground leading-relaxed">
+            <li>• Guess words to reveal the hidden phrase</li>
+            <li>• Correct words will be revealed in the phrase</li>
+            <li>• Incorrect words show a similarity % based on meaning</li>
+            <li>• Higher similarity means you're getting closer</li>
+            <li>• Reveal all words to win!</li>
+          </ul>
+        </Card>
+      )}
+
+      {/* Game Won Message */}
+      {isGameWon && (
+        <Card className="p-6 bg-primary text-primary-foreground text-center border-primary">
+          <h2 className="text-2xl font-bold mb-2">🎉 Congratulations!</h2>
+          <p className="text-balance">You've uncovered the hidden phrase in {guesses.length} guesses!</p>
+        </Card>
+      )}
+
+      {/* Guesses History */}
+      {guesses.length > 0 && (
+        <Card className="p-6 bg-card border-border">
+          <h3 className="font-semibold mb-4 text-lg">Previous Guesses</h3>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {guesses.map((guess, idx) => (
+              <div
+                key={idx}
+                className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                  guess.isCorrect ? "bg-primary/20 border-primary" : "bg-secondary border-border"
+                }`}
+              >
+                <span className="font-medium">{guess.word}</span>
+                <div className="flex items-center gap-3">
+                  {guess.isCorrect ? (
+                    <span className="text-primary text-sm font-semibold">✓ Correct</span>
+                  ) : (
+                    <>
+                      <div className="w-32 bg-muted rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${guess.similarity}%` }}
+                        />
+                      </div>
+                      <span className="text-muted-foreground text-sm font-mono w-12 text-right">
+                        {guess.similarity}%
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
