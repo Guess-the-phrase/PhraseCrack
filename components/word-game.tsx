@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { fetchSimilarity } from "@/lib/backend-client"
+import { cn, getSimilarityClasses } from "@/lib/utils"
 import { HelpCircle, RotateCcw } from "lucide-react"
 
 type Guess = {
@@ -15,9 +16,7 @@ type Guess = {
   isCorrect: boolean
 }
 
-const SAMPLE_PHRASES = [
-  "This is a funny phrase!",
-]
+const SAMPLE_PHRASES = ["This is a funny phrase!"]
 
 export function WordGame() {
   const [phrase, setPhrase] = useState("")
@@ -179,18 +178,26 @@ export function WordGame() {
                 <span className="font-medium">{guess.word}</span>
                 <div className="flex items-center gap-3">
                   {guess.isCorrect ? (
-                    <span className="text-primary text-sm font-semibold">✓ Correct</span>
+                    <span className="text-green-600 dark:text-green-400 text-sm font-semibold">✓ Correct</span>
                   ) : (
                     <>
+                      {(() => {
+                        const similarity = Math.max(0, Math.min(100, guess.similarity))
+                        const { bar, text } = getSimilarityClasses(similarity)
+                        return (
+                          <>
                       <div className="w-32 bg-muted rounded-full h-2 overflow-hidden">
                         <div
-                          className="h-full bg-primary transition-all duration-300"
-                          style={{ width: `${guess.similarity}%` }}
+                          className={cn("h-full transition-all duration-300", bar)}
+                          style={{ width: `${similarity}%` }}
                         />
                       </div>
-                      <span className="text-muted-foreground text-sm font-mono w-12 text-right">
-                        {guess.similarity}%
+                      <span className={cn("text-sm font-mono w-12 text-right", text)}>
+                        {similarity}%
                       </span>
+                          </>
+                        )
+                      })()}
                     </>
                   )}
                 </div>
