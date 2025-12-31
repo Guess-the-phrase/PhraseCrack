@@ -168,7 +168,22 @@ export function WordGame() {
         <Card className="p-6 bg-card border-border">
           <h3 className="font-semibold mb-4 text-lg">Previous Guesses</h3>
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {guesses.map((guess, idx) => (
+            {[...guesses]
+              .map((guess, originalIdx) => ({ guess, originalIdx }))
+              .sort((a, b) => {
+                // Correct guesses first
+                if (a.guess.isCorrect !== b.guess.isCorrect) return a.guess.isCorrect ? -1 : 1
+
+                // Then by similarity (desc) for incorrect guesses
+                if (!a.guess.isCorrect && !b.guess.isCorrect) {
+                  const diff = b.guess.similarity - a.guess.similarity
+                  if (diff !== 0) return diff
+                }
+
+                // Stable fallback
+                return a.originalIdx - b.originalIdx
+              })
+              .map(({ guess }, idx) => (
               <div
                 key={idx}
                 className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
