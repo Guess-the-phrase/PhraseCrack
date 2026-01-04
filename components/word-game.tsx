@@ -34,8 +34,8 @@ export function WordGame() {
       const res = await startGame()
       setGameId(res.gameId)
       setWords(res.words)
-    setGuesses([])
-    setCurrentGuess("")
+      setGuesses([])
+      setCurrentGuess("")
     } catch (error) {
       console.error("[PhraseCrack] Error starting new game:", error)
       setGameId(null)
@@ -71,11 +71,11 @@ export function WordGame() {
           return next
         })
         setGuesses((prev) => [{ word: guessText, similarity: 100, isCorrect: true }, ...prev])
-    } else {
+      } else {
         setGuesses((prev) => [{ word: guessText, similarity: Math.round(res.similarity), isCorrect: false }, ...prev])
-    }
+      }
 
-    setCurrentGuess("")
+      setCurrentGuess("")
     } catch (error) {
       console.error("[PhraseCrack] Error submitting guess:", error)
       // Keep game playable if API is unavailable
@@ -85,8 +85,8 @@ export function WordGame() {
       ])
       setCurrentGuess("")
     } finally {
-    setIsLoading(false)
-  }
+      setIsLoading(false)
+    }
   }
 
   const isGameWon = words.length > 0 && words.every((w) => w.revealed)
@@ -186,17 +186,22 @@ export function WordGame() {
             {[...guesses]
               .map((guess, originalIdx) => ({ guess, originalIdx }))
               .sort((a, b) => {
-                // Correct guesses first
-                if (a.guess.isCorrect !== b.guess.isCorrect) return a.guess.isCorrect ? -1 : 1
 
-                // Then by similarity (desc) for incorrect guesses
+                // Correct guesses first
+                // if (a.guess.isCorrect !== b.guess.isCorrect) return a.guess.isCorrect ? -1 : 1
+
+                // If guess are both incorrect
                 if (!a.guess.isCorrect && !b.guess.isCorrect) {
-                  const diff = b.guess.similarity - a.guess.similarity
-                  if (diff !== 0) return diff
+                  const diff = b.guess.similarity - a.guess.similarity;
+                  if (diff !== 0) return diff;
                 }
 
+                // Correct guesses at least
+                if (a.guess.isCorrect !== b.guess.isCorrect) return a.guess.isCorrect ? 1 : -1;
+                
                 // Stable fallback
-                return a.originalIdx - b.originalIdx
+                return a.originalIdx - b.originalIdx;
+                
               })
               .map(({ guess }, idx) => (
               <div
