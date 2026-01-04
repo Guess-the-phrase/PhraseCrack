@@ -18,12 +18,11 @@ async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promi
 
 export type GameWord = {
   position: number
-  revealed: boolean
-  display: string
+  size: number
 }
 
 export type StartGameResponse = {
-  gameId: string
+  gameId: number
   words: GameWord[]
 }
 
@@ -36,7 +35,7 @@ export type RevealPhraseResponse = {
   phrase: string
 }
 
-export async function revealPhrase(gameId: string): Promise<RevealPhraseResponse> {
+export async function revealPhrase(gameId: number): Promise<RevealPhraseResponse> {
   const url = buildUrl(`/api/game/${gameId}/phrase`, `/game/${gameId}/phrase`)
   return await fetchJson<RevealPhraseResponse>(url)
 }
@@ -44,6 +43,7 @@ export async function revealPhrase(gameId: string): Promise<RevealPhraseResponse
 export type SubmitGuessResponse =
   | {
       isCorrect: true
+      similarity: number
       reveals: Array<{ position: number; word: string }>
     }
   | {
@@ -51,7 +51,7 @@ export type SubmitGuessResponse =
       similarity: number
     }
 
-export async function submitGuess(gameId: string, word: string): Promise<SubmitGuessResponse> {
+export async function submitGuess(gameId: number, word: string): Promise<SubmitGuessResponse> {
   const url = buildUrl(`/api/game/${gameId}/try`, `/game/${gameId}/try`)
   return await fetchJson<SubmitGuessResponse>(url, {
     method: "POST",

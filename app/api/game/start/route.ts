@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server"
-import { createGame, getMaskedWords } from "../_store"
+import { getDailyGameId, getGameById, getWordMeta } from "../_store"
 
 export async function POST() {
-  const id = crypto.randomUUID()
-  const game = createGame(id)
+  const gameId = getDailyGameId()
+  const game = getGameById(gameId)
+
+  if (!game) {
+    return NextResponse.json({ error: "Game not found" }, { status: 404 })
+  }
 
   return NextResponse.json({
-    gameId: game.id,
-    words: getMaskedWords(game),
+    gameId: game.gameId,
+    words: getWordMeta(game),
   })
 }
 
