@@ -1,44 +1,63 @@
-export type SimilarityRequest = {
-  guess: string
+type BackendBaseUrl = string | undefined
+
+function getBackendBaseUrl(): BackendBaseUrl {
+  return process.env.NEXT_PUBLIC_PHRASECRACK_BACKEND_URL
+}
+
+function buildUrl(localPath: string, remotePath: string) {
+  const baseUrl = getBackendBaseUrl()
+  // If a future external backend is configured, prefer it; otherwise use Next.js local routes.
+  return baseUrl ? `${baseUrl}${remotePath}` : localPath
+}
+
+async function fetchJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+  const res = await fetch(input, init)
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`)
+  return (await res.json()) as T
+}
+
+export type GameWord = {
+  position: number
+  revealed: boolean
+  display: string
+}
+
+export type StartGameResponse = {
+  gameId: string
+  words: GameWord[]
+}
+
+export async function startGame(): Promise<StartGameResponse> {
+  const url = buildUrl("/api/game/start", "/game/start")
+  return await fetchJson<StartGameResponse>(url, { method: "POST" })
+}
+
+export type RevealPhraseResponse = {
   phrase: string
 }
 
-export type SimilarityResponse = {
-  /**
-   * Similarity score in the range [0, 1]
-   */
-  similarity: number
+export async function revealPhrase(gameId: string): Promise<RevealPhraseResponse> {
+  const url = buildUrl(`/api/game/${gameId}/phrase`, `/game/${gameId}/phrase`)
+  return await fetchJson<RevealPhraseResponse>(url)
 }
 
-/**
- * Placeholder client for external backend.
- *
- * TODO: Replace the URL/path/payload with real backend contract.
- * TODO: Add auth headers (JWT/session/API key) as needed.
- * TODO: Add request timeout/retry and better error mapping if desired.
- */
-export async function fetchSimilarity(req: SimilarityRequest): Promise<SimilarityResponse> {
-  // TODO: set this env var in deployment
-  const baseUrl = process.env.NEXT_PUBLIC_PHRASECRACK_BACKEND_URL
+export type SubmitGuessResponse =
+  | {
+      isCorrect: true
+      reveals: Array<{ position: number; word: string }>
+    }
+  | {
+      isCorrect: false
+      similarity: number
+    }
 
-  if (!baseUrl) {
-    // Intentionally fail so UI can fall back to the demo behavior.
-    throw new Error("TODO: configure NEXT_PUBLIC_PHRASECRACK_BACKEND_URL to point to backend")
-  }
-
-  // TODO: confirm endpoint path with backend repo.
-  const res = await fetch(`${baseUrl}/similarity`, {
+export async function submitGuess(gameId: string, word: string): Promise<SubmitGuessResponse> {
+  const url = buildUrl(`/api/game/${gameId}/try`, `/game/${gameId}/try`)
+  return await fetchJson<SubmitGuessResponse>(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req),
+    body: JSON.stringify({ word }),
   })
-
-  if (!res.ok) {
-    throw new Error(`Backend error: ${res.status}`)
-  }
-
-  // TODO: validate response shape (zod) if you want hard guarantees.
-  return (await res.json()) as SimilarityResponse
 }
 
 
