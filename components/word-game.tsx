@@ -16,9 +16,15 @@ type Guess = {
   isCorrect: boolean
 }
 
+type DisplayWord = {
+  position: number
+  revealed: boolean
+  display: string
+}
+
 export function WordGame() {
-  const [gameId, setGameId] = useState<string | null>(null)
-  const [words, setWords] = useState<GameWord[]>([])
+  const [gameId, setGameId] = useState<number | null>(null)
+  const [words, setWords] = useState<DisplayWord[]>([])
   const [guesses, setGuesses] = useState<Guess[]>([])
   const [currentGuess, setCurrentGuess] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -33,7 +39,13 @@ export function WordGame() {
     try {
       const res = await startGame()
       setGameId(res.gameId)
-      setWords(res.words)
+      setWords(
+        res.words.map((w: GameWord) => ({
+          position: w.position,
+          revealed: false,
+          display: "•".repeat(Math.max(1, w.size)),
+        }))
+      )
       setGuesses([])
       setCurrentGuess("")
     } catch (error) {
@@ -70,7 +82,7 @@ export function WordGame() {
           }
           return next
         })
-        setGuesses((prev) => [{ word: guessText, similarity: 100, isCorrect: true }, ...prev])
+        setGuesses((prev) => [{ word: guessText, similarity: Math.round(res.similarity), isCorrect: true }, ...prev])
       } else {
         setGuesses((prev) => [{ word: guessText, similarity: Math.round(res.similarity), isCorrect: false }, ...prev])
       }
@@ -97,6 +109,7 @@ export function WordGame() {
       <div className="text-center space-y-2">
         <h1 className="text-4xl font-bold tracking-tight">PhraseCrack</h1>
         <p className="text-muted-foreground text-balance">Guess the hidden phrase using semantic similarity</p>
+        {gameId != null && <p className="text-xs text-muted-foreground">Daily #{gameId}</p>}
       </div>
 
       {/* Phrase Display */}
