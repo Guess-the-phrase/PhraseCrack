@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
-import { fetchSimilarity } from "@/lib/backend-client"
+import { startGame, submitGuess, type GameWord } from "@/lib/backend-client"
 import { cn, getSimilarityClasses } from "@/lib/utils"
 import { HelpCircle, RotateCcw } from "lucide-react"
 
@@ -16,65 +16,80 @@ type Guess = {
   isCorrect: boolean
 }
 
-const SAMPLE_PHRASES = ["This is a funny phrase!"]
-
 export function WordGame() {
-  const [phrase, setPhrase] = useState("")
-  const [revealedWords, setRevealedWords] = useState<Set<string>>(new Set())
+  const [gameId, setGameId] = useState<string | null>(null)
+  const [words, setWords] = useState<GameWord[]>([])
   const [guesses, setGuesses] = useState<Guess[]>([])
   const [currentGuess, setCurrentGuess] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showInstructions, setShowInstructions] = useState(false)
 
   useEffect(() => {
-    startNewGame()
+    void startNewGame()
   }, [])
 
-  const startNewGame = () => {
-    const randomPhrase = SAMPLE_PHRASES[Math.floor(Math.random() * SAMPLE_PHRASES.length)]
-    setPhrase(randomPhrase)
-    setRevealedWords(new Set())
+  const startNewGame = async () => {
+    setIsLoading(true)
+    try {
+      const res = await startGame()
+      setGameId(res.gameId)
+      setWords(res.words)
     setGuesses([])
     setCurrentGuess("")
+    } catch (error) {
+      console.error("[PhraseCrack] Error starting new game:", error)
+      setGameId(null)
+      setWords([])
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!currentGuess.trim() || isLoading) return
 
+    if (!gameId) {
+      console.error("[PhraseCrack] No active gameId; cannot submit guess.")
+      return
+    }
+
     setIsLoading(true)
-    const normalizedGuess = currentGuess.toLowerCase().trim()
+    const guessText = currentGuess.trim()
 
-    // Check if the guess is in the phrase
-    const phraseWords = phrase.toLowerCase().split(" ")
-    const isCorrect = phraseWords.includes(normalizedGuess)
+    try {
+      const res = await submitGuess(gameId, guessText)
 
-    if (isCorrect) {
-      const newRevealed = new Set(revealedWords)
-      newRevealed.add(normalizedGuess)
-      setRevealedWords(newRevealed)
-      setGuesses([{ word: currentGuess, similarity: 100, isCorrect: true }, ...guesses])
+      if (res.isCorrect) {
+        setWords((prev) => {
+          const next = [...prev]
+          for (const r of res.reveals) {
+            const existing = next[r.position]
+            if (!existing) continue
+            next[r.position] = { ...existing, revealed: true, display: r.word }
+          }
+          return next
+        })
+        setGuesses((prev) => [{ word: guessText, similarity: 100, isCorrect: true }, ...prev])
     } else {
-      // Calculate similarity using external backend
-      try {
-        // TODO: Wire this to real backend (see `lib/backend-client.ts`).
-        const { similarity } = await fetchSimilarity({ guess: normalizedGuess, phrase })
-        setGuesses([{ word: currentGuess, similarity: Math.round(similarity * 100), isCorrect: false }, ...guesses])
-      } catch (error) {
-        console.error("[PhraseCrack] Error calculating similarity:", error)
-        // Fallback to random similarity for demo
-        setGuesses([
-          { word: currentGuess, similarity: Math.floor(Math.random() * 80) + 10, isCorrect: false },
-          ...guesses,
-        ])
-      }
+        setGuesses((prev) => [{ word: guessText, similarity: Math.round(res.similarity), isCorrect: false }, ...prev])
     }
 
     setCurrentGuess("")
+    } catch (error) {
+      console.error("[PhraseCrack] Error submitting guess:", error)
+      // Keep game playable if API is unavailable
+      setGuesses((prev) => [
+        { word: guessText, similarity: Math.floor(Math.random() * 80) + 10, isCorrect: false },
+        ...prev,
+      ])
+      setCurrentGuess("")
+    } finally {
     setIsLoading(false)
   }
+  }
 
-  const isGameWon = phrase.split(" ").every((word) => revealedWords.has(word.toLowerCase()))
+  const isGameWon = words.length > 0 && words.every((w) => w.revealed)
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
@@ -87,17 +102,17 @@ export function WordGame() {
       {/* Phrase Display */}
       <Card className="p-8 bg-card border-border">
         <div className="flex flex-wrap gap-3 justify-center items-center min-h-16">
-          {phrase.split(" ").map((word, idx) => (
+          {words.map((word, idx) => (
             <div
               key={idx}
               className={`px-4 py-2 rounded-lg border-2 transition-all duration-300 ${
-                revealedWords.has(word.toLowerCase())
+                word.revealed
                   ? "bg-primary text-primary-foreground border-primary"
                   : "bg-secondary border-border"
               }`}
             >
               <span className="font-mono text-lg font-medium">
-                {revealedWords.has(word.toLowerCase()) ? word : "•".repeat(word.length)}
+                {word.display}
               </span>
             </div>
           ))}
